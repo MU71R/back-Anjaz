@@ -1,7 +1,7 @@
 const usermodel = require("../model/users");
 const adddepartment = async (req, res) => {
   try {
-    const { username, fullname, password, role, sector, phone, } = req.body;
+    const { username, fullname, password, role, sector, } = req.body;
     if (!fullname) {
       return res.status(400).json({ message: "اسم القسم مطلوب." });
     }
@@ -24,7 +24,6 @@ const adddepartment = async (req, res) => {
       password,
       role,
       sector,
-      phone,
       status:"active"
     });
     res.status(201).json(newDepartment);
