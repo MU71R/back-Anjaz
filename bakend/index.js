@@ -7,12 +7,13 @@ require('dotenv').config()
 const cors = require("cors");
 app.use(cors(
   {
-    origin: "http://localhost:4200",
+    origin: "*",
     methods:["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }
 ));
 app.use("/", require("./routes/login"));
+app.use("/users", require("./routes/users"));
 const mongourl = process.env.MONGO_URL;
 mongoose
   .connect(mongourl)

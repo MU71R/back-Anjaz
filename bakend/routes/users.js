@@ -1,0 +1,11 @@
+const express = require("express");
+const router = express.Router();
+const {verifyTokenMiddleware,isAdmin} = require("../midelware/auth");
+const {adddepartment, addsector, getallusers, getuserbyid,stats, updatestatus} = require("../controller/users");
+router.post("/adddepartment", verifyTokenMiddleware, isAdmin, adddepartment);
+router.post("/addsector", verifyTokenMiddleware, isAdmin, addsector);
+router.get("/all-users", verifyTokenMiddleware,getallusers);
+router.get("/user/:id", verifyTokenMiddleware,getuserbyid);
+router.get("/stats", verifyTokenMiddleware,isAdmin, stats);
+router.put("/update-status/:id", verifyTokenMiddleware,isAdmin, updatestatus);
+module.exports = router;
