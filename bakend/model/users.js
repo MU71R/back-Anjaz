@@ -24,16 +24,17 @@ const userSchema = new mongoose.Schema({
         "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل وتحتوي على حرف كبير واحد على الأقل وحرف صغير واحد ورقم واحد وحرف خاص واحد",
     },
     required: function () {
-      return this.username;
-    },
+              return this.username;
+      },
+
   },
   role: {
     type: String,
     enum: ["user", "admin"],
   },
   sector: {
-    type: String,
-    required: true,
+    ref: "Sector",
+    type: mongoose.Schema.Types.ObjectId,
   },
   status: {
     type: String,
