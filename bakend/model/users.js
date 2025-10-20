@@ -8,7 +8,9 @@ const userSchema = new mongoose.Schema({
   },
   fullname: {
     type: String,
-    required: true,
+    required: function () {
+        return this.username;
+      }
   },
   password: {
     type: String,
@@ -21,27 +23,25 @@ const userSchema = new mongoose.Schema({
       message:
         "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل وتحتوي على حرف كبير واحد على الأقل وحرف صغير واحد ورقم واحد وحرف خاص واحد",
     },
-    required: true,
+    required: function () {
+        return this.username;
+      },
   },
   role: {
     type: String,
     enum: ["user", "admin"],
-    default: "user",
-  },
-  department: {
-    type: String,
-    required: true,
-    unique: true,
   },
   sector: {
     type: String,
     required: true,
-    unique: true,
   },
   status: {
     type: String,
     enum: ["active", "inactive"],
-    default: "active",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
   },
 });
 userSchema.pre("save", async function (next) {

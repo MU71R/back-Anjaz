@@ -3,67 +3,23 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const loginController = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
         if (!user) {
-            return res.status(401).json({ message: "Invalid email or password" });
+            return res.status(401).json({ success: false, message: "اسم المستخدم غير صحيح أو كلمة المرور غير صحيح" });
+        }
+        if (user.status === "inactive") {
+            return res.status(403).json({ success: false, message: "المستخدم غير نشط. يرجى الاتصال بالمسؤول." });
         }
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ message: "Invalid email or password" });
+            return res.status(401).json({ success: false, message: "كلمة المرور غير صحيح" });
         }
         const token = jwt.sign({ userId: user._id, name: user.name, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
-        res.json({ token, user });
+        res.json({ success: true, token, user });
     } catch (error) {
         console.error("Login error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ success: false, message: "حدث خطأ داخلي في الخادم" });
     }
 };
-
-// register controller
-const registerController = async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    // ✅ التحقق من الحقول
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "الاسم، البريد الإلكتروني، وكلمة المرور مطلوبة." });
-    }
-
-    // ✅ التأكد من عدم وجود المستخدم مسبقًا
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({ message: "هذا البريد مستخدم مسبقًا." });
-    }
-
-    const newUser = await User.create({
-      name,
-      email,
-      password
-    });
-
-    // ✅ إنشاء توكن
-    const token = jwt.sign(
-      { userId: newUser._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    // ✅ إرجاع الرد
-    res.status(201).json({
-      message: "تم إنشاء الحساب بنجاح ✅",
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email
-      },
-      token
-    });
-
-  } catch (error) {
-    console.error("❌ Register error:", error);
-    res.status(500).json({ message: "حدث خطأ داخلي في الخادم" });
-  }
-};
-
-module.exports = {loginController, registerController};
+module.exports = { loginController };
