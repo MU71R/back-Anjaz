@@ -17,7 +17,6 @@ const adddepartment = async (req, res) => {
     if (!username) {
       return res.status(400).json({ message: "اسم المستخدم مطلوب." });
     }
-
     const newDepartment = await usermodel.create({
       username,
       fullname,
@@ -99,4 +98,80 @@ const stats = async (req, res) => {
       }
 
 };
-module.exports = { adddepartment, addsector, getallusers,getuserbyid,stats,updatestatus };
+
+// get all sectors
+const getallsectors = async (req, res) => {
+    try {
+        const sectors = await usermodel.find( {sector: { $exists: true } }).select("-password");
+        res.status(200).json(sectors);
+      } catch (error) {
+        console.error("خطأ في جلب القطاعات", error);
+        res.status(500).json({ message: "خطأ في الخادم الداخلي", error: error.message });
+      }
+};
+
+// delete user
+const deleteuser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await usermodel.findByIdAndDelete(id);
+        if (!user) {
+          return res.status(404).json({ message: "المستخدم غير موجود" });
+        }
+        res.status(200).json(user);
+      } catch (error) {
+        console.error("خطأ في حذف المستخدم", error);
+        res.status(500).json({ message: "خطأ في الخادم الداخلي", error: error.message });
+      }
+};
+
+// update user
+const updateuser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updateuser = req.body;
+        const user = await usermodel.findByIdAndUpdate(id, updateuser, { new: true });
+        if (!user) {
+          return res.status(404).json({ message: "المستخدم غير موجود" });
+        }
+        res.status(200).json(user);
+      } catch (error) {
+        console.error("خطأ في تحديث المستخدم", error);
+        res.status(500).json({ message: "خطأ في الخادم الداخلي", error: error.message });
+      }
+
+};
+
+// delete sector
+const deletesector = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const sector = await usermodel.findByIdAndDelete(id);
+        if (!sector) {
+          return res.status(404).json({ message: "القطاع غير موجود" });
+        }
+        res.status(200).json(sector);
+      } catch (error) {
+        console.error("خطأ في حذف القطاع", error);
+        res.status(500).json({ message: "خطأ في الخادم الداخلي", error: error.message });
+      }
+};
+
+// update sector
+const updatesector = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updatesector = req.body;
+        const sector = await usermodel.findByIdAndUpdate(id, updatesector, { new: true });
+        if (!sector) {
+          return res.status(404).json({ message: "القطاع غير موجود" });
+        }
+        res.status(200).json(sector);
+      } catch (error) {
+        console.error("خطأ في تحديث القطاع", error);
+        res.status(500).json({ message: "خطأ في الخادم الداخلي", error: error.message });
+      }
+};
+
+
+module.exports = { adddepartment, addsector, getallusers,getuserbyid,stats,updatestatus ,getallsectors,deleteuser,updateuser,deletesector,updatesector};
