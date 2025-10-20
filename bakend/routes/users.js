@@ -4,7 +4,11 @@ const {
   verifyTokenMiddleware,
   isAdmin,
   authorizeOwnerOrAdmin,
+<<<<<<< HEAD
 } = require("../middleware/auth");
+=======
+} = require("../midelware/auth");
+>>>>>>> main
 const {
   adduser,
   addsector,
@@ -42,7 +46,11 @@ router.delete(
   deletesector
 );
 router.put("/update-sector/:id", verifyTokenMiddleware, isAdmin, updatesector);
+<<<<<<< HEAD
 router.get("/filter-by-sector", verifyTokenMiddleware, filterBySector);
+=======
+router.get("/filter", verifyTokenMiddleware, filterBySector);
+>>>>>>> main
 router.get("/search", verifyTokenMiddleware, search);
 router.get("/sort", verifyTokenMiddleware, sort);
 module.exports = router;
