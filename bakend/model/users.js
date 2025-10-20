@@ -32,8 +32,8 @@ const userSchema = new mongoose.Schema({
     enum: ["user", "admin"],
   },
   sector: {
-    type: String,
-    required: true,
+    ref: "Sector",
+    type: mongoose.Schema.Types.ObjectId,
   },
   status: {
     type: String,

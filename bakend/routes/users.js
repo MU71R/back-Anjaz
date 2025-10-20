@@ -4,7 +4,7 @@ const {
   verifyTokenMiddleware,
   isAdmin,
   authorizeOwnerOrAdmin,
-} = require("../midelware/auth");
+} = require("../middleware/auth");
 const {
   adduser,
   addsector,

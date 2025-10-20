@@ -1,4 +1,5 @@
 const usermodel = require("../model/users");
+const sectormodel = require("../model/sector");
 const adduser = async (req, res) => {
   try {
     const { username, fullname, password, role, sector } = req.body;
@@ -50,7 +51,7 @@ const addsector = async (req, res) => {
         .status(400)
         .json({ success: false, message: "اسم القطاع مطلوب." });
     }
-    const newSector = await usermodel.create({
+    const newSector = await sectormodel.create({
       sector,
     });
     res.status(201).json({ success: true, data: newSector });
@@ -149,9 +150,7 @@ const stats = async (req, res) => {
 // get all sectors
 const getallsectors = async (req, res) => {
   try {
-    const sectors = await usermodel
-      .find({ sector: { $exists: true } })
-      .select("-password");
+    const sectors = await sectormodel.find();
     res.status(200).json({ success: true, data: sectors });
   } catch (error) {
     console.error("خطأ في جلب القطاعات", error);
@@ -212,7 +211,7 @@ const updateuser = async (req, res) => {
 const deletesector = async (req, res) => {
   try {
     const { id } = req.params;
-    const sector = await usermodel.findByIdAndDelete(id);
+    const sector = await sectormodel.findByIdAndDelete(id);
     if (!sector) {
       return res
         .status(404)
@@ -234,7 +233,7 @@ const updatesector = async (req, res) => {
   try {
     const { id } = req.params;
     const updatesector = req.body;
-    const sector = await usermodel.findByIdAndUpdate(id, updatesector, {
+    const sector = await sectormodel.findByIdAndUpdate(id, updatesector, {
       new: true,
     });
     if (!sector) {
