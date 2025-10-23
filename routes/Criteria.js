@@ -6,17 +6,17 @@ const {
   addSubCriteria,
   getAllMainCriteria,
   getAllSubCriteria,
-  updateMainCriteria,
+  updateMainCriteriaPartial,
   updateSubCriteria,
   deleteMainCriteria,
   deleteSubCriteria,
 } = require("../controller/Criteria");
-router.post("/add-main-criteria", verifyTokenMiddleware, addMainCriteria);
-router.post("/add-sub-criteria", verifyTokenMiddleware, addSubCriteria);
-router.get("/all-main-criteria", verifyTokenMiddleware, getAllMainCriteria);
-router.get("/all-sub-criteria", verifyTokenMiddleware, getAllSubCriteria);
-router.put("/update-main-criteria/:id", verifyTokenMiddleware, updateMainCriteria);
-router.put("/update-sub-criteria/:id", verifyTokenMiddleware, updateSubCriteria);
-router.delete("/delete-main-criteria/:id", verifyTokenMiddleware, deleteMainCriteria);
-router.delete("/delete-sub-criteria/:id", verifyTokenMiddleware, deleteSubCriteria);
+router.post("/add-main-criteria", verifyTokenMiddleware, isAdmin, addMainCriteria);
+router.post("/add-sub-criteria", verifyTokenMiddleware, isAdmin, addSubCriteria);
+router.get("/all-main-criteria", verifyTokenMiddleware, isAdmin, getAllMainCriteria);
+router.get("/all-sub-criteria", verifyTokenMiddleware, isAdmin, getAllSubCriteria);
+router.put("/update-main-criteria/:id", verifyTokenMiddleware, isAdmin, updateMainCriteriaPartial);
+router.put("/update-sub-criteria/:id", verifyTokenMiddleware, isAdmin, updateSubCriteria);
+router.delete("/delete-main-criteria/:id", verifyTokenMiddleware, isAdmin, deleteMainCriteria);
+router.delete("/delete-sub-criteria/:id", verifyTokenMiddleware, isAdmin, deleteSubCriteria);
 module.exports = router;

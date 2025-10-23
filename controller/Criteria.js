@@ -37,7 +37,46 @@ const addMainCriteria = async (req, res) => {
   }
 };
 
+// update main criteria
+const updateMainCriteriaPartial = async (req, res) => {
+  try {
+    const { id, name, level, sector, departmentUser } = req.body;
 
+    if (!id) return res.status(400).json({ error: "معرف المعيار مطلوب للتحديث" });
+
+    // بناء كائن التحديث ديناميكيًا
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (level) updateData.level = level;
+    if (level === "SECTOR" && sector !== undefined) updateData.sector = sector;
+    if (level === "DEPARTMENT" && departmentUser !== undefined) updateData.departmentUser = departmentUser;
+
+    // تحقق من التكرار إذا تم تحديث الاسم أو المستوى أو القطاع/القسم
+    if (updateData.name || updateData.level || updateData.sector || updateData.departmentUser) {
+      let query = {
+        name: updateData.name || undefined,
+        level: updateData.level || undefined,
+      };
+
+      if (updateData.level === "SECTOR") query.sector = updateData.sector;
+      else if (updateData.level === "DEPARTMENT") query.departmentUser = updateData.departmentUser;
+
+      // إزالة undefined من query
+      Object.keys(query).forEach(key => query[key] === undefined && delete query[key]);
+
+      const existing = await MainCriteria.findOne({ ...query, _id: { $ne: id } });
+      if (existing) return res.status(400).json({ error: "المعيار موجود بالفعل" });
+    }
+
+    const updated = await MainCriteria.findByIdAndUpdate(id, updateData, { new: true });
+
+    if (!updated) return res.status(404).json({ error: "المعيار غير موجود" });
+
+    res.status(200).json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 // add sub criteria
 const addSubCriteria = async (req, res) => {
@@ -102,25 +141,6 @@ const getAllSubCriteria = async (req, res) => {
   }
 };
 
-// update main criteria
-const updateMainCriteria = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
-    if (!name) {
-      return res.status(400).json({ error: "الاسم مطلوب" });
-    }
-    const mainCriteria = await MainCriteria.findByIdAndUpdate(
-      id,
-      { name },
-      { new: true }
-    );
-    res.status(200).json(mainCriteria);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 // update sub criteria
 const updateSubCriteria = async (req, res) => {
   try {
@@ -167,7 +187,7 @@ module.exports = {
   addSubCriteria,
   getAllMainCriteria,
   getAllSubCriteria,
-  updateMainCriteria,
+  updateMainCriteriaPartial,
   updateSubCriteria,
   deleteMainCriteria,
   deleteSubCriteria,
