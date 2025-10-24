@@ -113,22 +113,42 @@ const getAllMainCriteria = async (req, res) => {
       .populate("departmentUser", "fullname username")
       .populate({
         path: "subCriteria",
-        select: "name userId",
-        populate: { path: "userId", select: "fullname username" }
+        select: "name userId mainCriteria",
+        populate: [
+          { path: "userId", select: "fullname username" },
+          { path: "mainCriteria", select: "name level" } // ✅ populate إضافي لو عايز ترجع بيانات المعيار الرئيسي داخل المعيار الفرعي
+        ]
       });
-
+      if(req.user.role === "admin"){
+        return res.status(200).json(allCriteria);
+      }
+    // فلترة بناءً على مستوى المعيار والمستخدم الحالي
     const filtered = allCriteria.filter(criteria => {
       if (criteria.level === "ALL") return true;
-      if (criteria.level === "SECTOR" && criteria.sector?.toString() === user.sector?.toString()) return true;
-      if (criteria.level === "DEPARTMENT" && criteria.departmentUser?.toString() === user._id.toString()) return true;
+
+      if (
+        criteria.level === "SECTOR" &&
+        criteria.sector &&
+        user.sector &&
+        criteria.sector._id.toString() === user.sector.toString()
+      ) return true;
+
+      if (
+        criteria.level === "DEPARTMENT" &&
+        criteria.departmentUser &&
+        criteria.departmentUser._id.toString() === user._id.toString()
+      ) return true;
+
       return false;
     });
 
     res.status(200).json(filtered);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
 // get all sub criteria
