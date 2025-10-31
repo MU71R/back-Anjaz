@@ -22,6 +22,7 @@ const {
   updateDraftActivities,
   deleteDraftActivities,
   getdraftActivitiesById,
+  viewDOCX,
 } = require("../controller/activity");
 
 router.post(
@@ -54,4 +55,5 @@ router.delete(
 );
 router.get("/draft/:id", verifyTokenMiddleware, getdraftActivitiesById);
 router.get("/pdf/:filename", verifyTokenMiddleware, viewPDF);
+router.get("/docx/:filename", verifyTokenMiddleware, viewDOCX);
 module.exports = router;

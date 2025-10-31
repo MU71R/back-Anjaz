@@ -632,13 +632,38 @@ const updateActivityStatus = async (req, res) => {
 const viewPDF = async (req, res) => {
   try {
     const { filename } = req.params;
-    const filePath = path.join(__dirname, "../uploads/", filename);
+    const filePath = path.join(__dirname, "../generated-files/", filename);
     res.setHeader("Content-Type", "application/pdf");
     res.sendFile(filePath);
   } catch (error) {
     res.status(500).json({ success: false, message: "خطأ في عرض الملف" });
   }
 };
+const viewDOCX = async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(__dirname, "../generated-files/", filename);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+
+    // هنا بنخلي الملف يتحمل أو يفتح في Microsoft Word
+ const safeFilename = encodeURIComponent(filename);
+
+res.setHeader(
+  "Content-Disposition",
+  `inline; filename="${safeFilename}"`
+);
+
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "خطاء في عرض الملف" });
+  }
+};
+
 const updateActivity = async (req, res) => {
   try {
     const activityId = req.params.id;
@@ -815,5 +840,6 @@ module.exports = {
   search,
   filterByStatus,
   recentAchievements,
-  viewPDF
+  viewPDF,
+  viewDOCX
 };
