@@ -52,17 +52,34 @@ const addactivity = async (req, res) => {
 
 const getallactivities = async (req, res) => {
   try {
+    // لو المستخدم مدير
+    if (req.user.role === "admin") {
+      const activities = await activitymodel
+        .find()
+        .populate("user", "fullname username role")
+        .populate("MainCriteria", "name")
+        .populate("SubCriteria", "name");
+
+      return res.status(200).json({ success: true, activities });
+    }
+
+    //  لو المستخدم عادي (مش admin)
+    const user = req.user._id;
     const activities = await activitymodel
-      .find()
+      .find({ user })
       .populate("user", "fullname username role")
       .populate("MainCriteria", "name")
       .populate("SubCriteria", "name");
-    res.status(200).json({ success: true, activities });
+
+    return res.status(200).json({ success: true, activities });
   } catch (error) {
     console.error("خطأ في جلب النشاطات:", error);
-    res.status(500).json({ success: false, message: "خطأ في الخادم الداخلي" });
+    return res
+      .status(500)
+      .json({ success: false, message: "خطأ في الخادم الداخلي" });
   }
 };
+
 const getActivityById = async (req, res) => {
   try {
     const activityId = req.params.id;
@@ -615,14 +632,8 @@ const updateActivityStatus = async (req, res) => {
 const viewPDF = async (req, res) => {
   try {
     const { filename } = req.params;
-
-    // المسار الكامل للملف
-    const filePath = path.join(__dirname, "../uploads/pdfs", filename);
-
-    // تحديد نوع المحتوى PDF
+    const filePath = path.join(__dirname, "../uploads/", filename);
     res.setHeader("Content-Type", "application/pdf");
-
-    // فتح الملف مباشرة في المتصفح
     res.sendFile(filePath);
   } catch (error) {
     res.status(500).json({ success: false, message: "خطأ في عرض الملف" });
@@ -680,9 +691,10 @@ const getarchivedActivities = async (req, res) => {
   }
 };
 const getdraftActivities = async (req, res) => {
+  const user = req.user._id;
   try {
     const draftActivities = await activitymodel
-      .find({ SaveStatus: "مسودة" })
+      .find({ SaveStatus: "مسودة", user })
       .populate("user", "fullname username role")
       .populate("MainCriteria", "name")
       .populate("SubCriteria", "name");
@@ -738,8 +750,15 @@ const filterByStatus = async (req, res) => {
 // ===== Recent Achievements (Activities)
 const recentAchievements = async (req, res) => {
   try {
+    let query = {};
+
+    //  لو المستخدم مش admin هنعرض بس إنجازاته هو
+    if (req.user.role !== "admin") {
+      query.user = req.user._id;
+    }
+
     const achievements = await activitymodel
-      .find()
+      .find(query)
       .populate("user", "fullname username role")
       .populate("MainCriteria", "name")
       .populate("SubCriteria", "name")
@@ -751,7 +770,7 @@ const recentAchievements = async (req, res) => {
       const mainCriteria = a.MainCriteria?.name;
       const subCriteria = a.SubCriteria?.name;
       const title = a.activityTitle || "بدون عنوان";
-      const timeText = formatEgyptTime(a.createdAt); //  هنا الاستدعاء الصحيح
+      const timeText = formatEgyptTime(a.createdAt);
 
       let criteriaText = "";
       if (mainCriteria && subCriteria)
@@ -760,25 +779,26 @@ const recentAchievements = async (req, res) => {
         criteriaText = `ضمن المعيار "${mainCriteria}"`;
       else if (subCriteria)
         criteriaText = `ضمن المعيار الفرعي "${subCriteria}"`;
-      else
-        criteriaText = "ضمن معيار لم يتم تحديده بعد";
+      else criteriaText = "ضمن معيار لم يتم تحديده بعد";
 
       return {
-        message: ` تمت إضافة إنجاز جديد بواسطة: ${userName}\n العنوان: "${title}"\n ${criteriaText}\n ${timeText}`,
+        message: `تمت إضافة إنجاز جديد بواسطة: ${userName}\nعنوان: "${title}"\n${criteriaText}\n${timeText}`,
         time: timeText,
         id: a._id,
       };
     });
 
-    res.json(activities);
+    res.status(200).json({ success: true, activities });
   } catch (err) {
-    console.error("Error fetching recent achievements:", err);
+    console.error("❌ Error fetching recent achievements:", err);
     res.status(500).json({
+      success: false,
       message: "حدث خطأ أثناء تحميل أحدث الإنجازات",
       error: err.message,
     });
   }
 };
+
 
 module.exports = {
   addactivity,

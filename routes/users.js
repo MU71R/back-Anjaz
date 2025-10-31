@@ -19,7 +19,8 @@ const {
   updatesector,
   filterBySector,
   search,
-  sort,
+  sort,     
+  userstats,
 } = require("../controller/users");
 router.post("/add-user", verifyTokenMiddleware, isAdmin, adduser);
 router.post("/add-sector", verifyTokenMiddleware, isAdmin, addsector);
@@ -31,6 +32,7 @@ router.get(
   getuserbyid
 );
 router.get("/stats", verifyTokenMiddleware, isAdmin, stats);
+router.get("/user-stats", verifyTokenMiddleware, isAdmin, userstats);
 router.put("/update-status/:id", verifyTokenMiddleware, isAdmin, updatestatus);
 router.get("/all-sectors", verifyTokenMiddleware, isAdmin, getallsectors);
 router.delete("/delete-user/:id", verifyTokenMiddleware, isAdmin, deleteuser);

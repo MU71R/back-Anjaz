@@ -1,5 +1,6 @@
 const usermodel = require("../model/users");
 const sectormodel = require("../model/sector");
+const activitymodel = require("../model/activity");
 const adduser = async (req, res) => {
   try {
     const { username, fullname, password, role, sector } = req.body;
@@ -152,6 +153,31 @@ const stats = async (req, res) => {
     });
   }
 };
+
+const userstats = async (req, res) => {
+  const user = req.user._id;
+  try {
+    const totalActivities = await activitymodel.countDocuments({ user });
+    const pendingActivities = await activitymodel.countDocuments({ status: "قيد المراجعة", user });
+    const activeActivities = await activitymodel.countDocuments({ status: "معتمد", user });
+    const inactiveActivities = await activitymodel.countDocuments({
+      status: "مرفوض ",
+      user,
+    });
+    res.status(200).json({
+      success: true,
+      data: { totalActivities, pendingActivities, activeActivities, inactiveActivities },
+    });
+  } catch (error) {
+    console.error("خطأ في جلب احصائيات المستخدم", error);
+    res.status(500).json({
+      success: false,
+      message: "خطأ في الخادم الداخلي",
+      error: error.message,
+    });
+  }
+};
+
 
 // get all sectors
 const getallsectors = async (req, res) => {
@@ -329,6 +355,7 @@ module.exports = {
   getallusers,
   getuserbyid,
   stats,
+  userstats,
   updatestatus,
   getallsectors,
   deleteuser,
