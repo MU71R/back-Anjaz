@@ -1,12 +1,21 @@
 const activitymodel = require("../model/activity");
 const { getIo } = require("../socket");
 const Notification = require("../model/notifications");
-const fs = require("fs");
 const path = require("path");
-const {formatEgyptTime} = require("../utils/getEgyptTime")
+const { formatEgyptTime } = require("../utils/getEgyptTime");
 const PDFDocument = require("pdfkit");
 const axios = require("axios");
 const { JSDOM } = require("jsdom");
+const fs = require("fs-extra");
+const moment = require("moment");
+const PdfPrinter = require("pdfmake");
+const dayjs = require("dayjs");
+const localizedFormat = require("dayjs/plugin/localizedFormat");
+require("dayjs/locale/ar"); // دعم اللغة العربية
+dayjs.extend(localizedFormat);
+require("moment/locale/ar");
+
+moment.locale("ar");
 const {
   Document,
   Packer,
@@ -19,10 +28,15 @@ const {
 
 const addactivity = async (req, res) => {
   try {
-    const { activityTitle, activityDescription, MainCriteria, SubCriteria, name,SaveStatus } = req.body;
-
-    const attachments = req.files.map(file => `/uploads/${file.filename}`);
-
+    const {
+      activityTitle,
+      activityDescription,
+      MainCriteria,
+      SubCriteria,
+      name,
+      SaveStatus,
+    } = req.body;
+    const attachments = req.files.map((file) => `/uploads/${file.filename}`);
     const newActivity = new activitymodel({
       user: req.user._id,
       activityTitle,
@@ -146,15 +160,25 @@ const updateDraftActivities = async (req, res) => {
     // البحث عن النشاط الحالي
     const currentActivity = await activitymodel.findById(activityId);
     if (!currentActivity) {
-      return res.status(404).json({ success: false, message: "النشاط غير موجود" });
+      return res
+        .status(404)
+        .json({ success: false, message: "النشاط غير موجود" });
     }
 
     // نبدأ بكائن تحديث فارغ
     const updates = {};
 
     // تحديث البيانات النصية لو موجودة
-    const fields = ["activityTitle", "activityDescription", "MainCriteria", "SubCriteria", "name", "SaveStatus", "status"];
-    fields.forEach(field => {
+    const fields = [
+      "activityTitle",
+      "activityDescription",
+      "MainCriteria",
+      "SubCriteria",
+      "name",
+      "SaveStatus",
+      "status",
+    ];
+    fields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
@@ -162,21 +186,21 @@ const updateDraftActivities = async (req, res) => {
 
     // ✅ معالجة المرفقات المحذوفة
     let finalAttachments = [...currentActivity.Attachments];
-    
+
     if (req.body.deletedAttachments) {
-      const deletedAttachments = Array.isArray(req.body.deletedAttachments) 
-        ? req.body.deletedAttachments 
+      const deletedAttachments = Array.isArray(req.body.deletedAttachments)
+        ? req.body.deletedAttachments
         : [req.body.deletedAttachments];
-      
+
       // حذف المرفقات المحذوفة من القائمة النهائية
-      finalAttachments = finalAttachments.filter(attachment => 
-        !deletedAttachments.includes(attachment)
+      finalAttachments = finalAttachments.filter(
+        (attachment) => !deletedAttachments.includes(attachment)
       );
 
       // ✅ حذف الملفات فعلياً من السيرفر
       for (const deletedAttachment of deletedAttachments) {
         try {
-          const filePath = path.join(__dirname, '..', deletedAttachment);
+          const filePath = path.join(__dirname, "..", deletedAttachment);
           if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
             console.log(`✅ تم حذف الملف: ${deletedAttachment}`);
@@ -189,7 +213,9 @@ const updateDraftActivities = async (req, res) => {
 
     // ✅ معالجة المرفقات الجديدة
     if (req.files && req.files.length > 0) {
-      const newAttachments = req.files.map(file => `/uploads/${file.filename}`);
+      const newAttachments = req.files.map(
+        (file) => `/uploads/${file.filename}`
+      );
       finalAttachments = [...finalAttachments, ...newAttachments];
     }
 
@@ -197,20 +223,23 @@ const updateDraftActivities = async (req, res) => {
     const maxFiles = 2;
     if (finalAttachments.length > maxFiles) {
       // حذف الملفات الجديدة التي تم رفعها
-      req.files.forEach(file => {
+      req.files.forEach((file) => {
         try {
-          const filePath = path.join(__dirname, '../uploads', file.filename);
+          const filePath = path.join(__dirname, "../uploads", file.filename);
           if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
           }
         } catch (fileError) {
-          console.error(`❌ خطأ في حذف الملف الزائد: ${file.filename}`, fileError);
+          console.error(
+            `❌ خطأ في حذف الملف الزائد: ${file.filename}`,
+            fileError
+          );
         }
       });
 
       return res.status(400).json({
         success: false,
-        message: `لا يمكن رفع أكثر من ${maxFiles} ملفات`
+        message: `لا يمكن رفع أكثر من ${maxFiles} ملفات`,
       });
     }
 
@@ -218,16 +247,14 @@ const updateDraftActivities = async (req, res) => {
     updates.Attachments = finalAttachments;
 
     // ✅ تحديث النشاط
-    const activity = await activitymodel.findByIdAndUpdate(
-      activityId, 
-      updates, 
-      { new: true }
-    ).populate("user", "fullname username role")
-     .populate("MainCriteria", "name")
-     .populate("SubCriteria", "name");
+    const activity = await activitymodel
+      .findByIdAndUpdate(activityId, updates, { new: true })
+      .populate("user", "fullname username role")
+      .populate("MainCriteria", "name")
+      .populate("SubCriteria", "name");
 
-    console.log('📎 المرفقات النهائية:', finalAttachments);
-    console.log('🔄 النشاط المحدث:', activity);
+    console.log("📎 المرفقات النهائية:", finalAttachments);
+    console.log("🔄 النشاط المحدث:", activity);
 
     res.status(200).json({
       success: true,
@@ -236,48 +263,47 @@ const updateDraftActivities = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ خطأ في تحديث النشاط:", error);
-    
+
     // ✅ حذف الملفات الجديدة في حالة الخطأ
     if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
+      req.files.forEach((file) => {
         try {
-          const filePath = path.join(__dirname, '../uploads', file.filename);
+          const filePath = path.join(__dirname, "../uploads", file.filename);
           if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
           }
         } catch (fileError) {
-          console.error(`❌ خطأ في حذف الملف بعد الخطأ: ${file.filename}`, fileError);
+          console.error(
+            `❌ خطأ في حذف الملف بعد الخطأ: ${file.filename}`,
+            fileError
+          );
         }
       });
     }
 
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "حدث خطأ أثناء التحديث",
-      error: error.message 
+      error: error.message,
     });
   }
 };
-function fixArabic(text) {
-  if (!text) return "";
-  return text.split(" ").reverse().join(" ");
-}
-
+// file system
+// ===== دوال مساعدة =====
 async function getImageBuffer(url) {
   try {
-    const response = await axios.get(url, { responseType: "arraybuffer" });
-    const contentType = response.headers["content-type"];
-    if (contentType && contentType.startsWith("image/")) {
-      return Buffer.from(response.data, "binary");
+    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+    const contentType = response.headers['content-type'];
+    if (contentType && contentType.startsWith('image/')) {
+      return Buffer.from(response.data);
     }
-    console.warn(" الرابط ليس صورة:", url);
     return null;
-  } catch (error) {
-    console.error(" فشل تحميل الصورة:", url);
+  } catch (err) {
+    console.warn('فشل تحميل الصورة:', url);
     return null;
   }
 }
-// file system
+
 function getUniqueFilePath(dir, baseName, ext) {
   let counter = 1;
   let filePath = path.join(dir, `${baseName}${ext}`);
@@ -286,6 +312,193 @@ function getUniqueFilePath(dir, baseName, ext) {
   }
   return filePath;
 }
+
+// تنسيق التاريخ بالعربية
+const formatDate = (d) => {
+  if (!d) return "غير محدد";
+  return dayjs(d).locale("ar").format("D MMMM YYYY");
+};
+
+// دالة كتابة حقل مع wrap طبيعي
+const writeField = (doc, label, value, pageW) => {
+  const margin = 70;
+  const maxWidth = pageW - margin * 2;
+  doc.text(`${label}: ${value}`, margin, doc.y, {
+    width: maxWidth,
+    align: 'right',
+    lineGap: 4,
+    features: ['rtla'], // دعم RTL
+  });
+  doc.moveDown(0.5);
+};
+
+// ===== الكود الرئيسي =====
+const generateAllActivitiesPDF = async (req, res) => {
+ try {
+    // 1. استخراج الفلاتر + التواريخ
+    const { startDate, endDate, ...otherFilters } = req.query;
+    const filters = {};
+
+    // فلترة على الحقول العادية
+    for (const [key, value] of Object.entries(otherFilters)) {
+      if (value && value !== 'null' && value !== 'undefined') filters[key] = value;
+    }
+
+    // 2. فلترة التاريخ (اختياري)
+    if (startDate) {
+      if (endDate) {
+        filters.date = {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        };
+      } else {
+        const date = new Date(startDate);
+        filters.date = {
+          $gte: new Date(date.setHours(0, 0, 0, 0)),
+          $lte: new Date(date.setHours(23, 59, 59, 999))
+        };
+      }
+    }
+
+    // 3. تحميل الأنشطة
+    const activities = await activitymodel
+      .find(filters)
+      .populate('user', 'fullname name role')
+      .populate('MainCriteria', 'name')
+      .populate('SubCriteria', 'name')
+      .sort({ 'user.fullname': 1, createdAt: -1 });
+
+    if (!activities.length) return res.status(404).json({ success: false, message: 'لا توجد أنشطة مطابقة' });
+
+    // 4. وصف الفلترة
+    let filterDescription = 'تقرير الأنشطة';
+    for (const [key, value] of Object.entries(otherFilters)) {
+      if (value) {
+        let displayKey = '', displayValue = '';
+        if (key === 'MainCriteria') displayValue = activities[0]?.MainCriteria?.name || value;
+        else if (key === 'SubCriteria') displayValue = activities[0]?.SubCriteria?.name || value;
+        else if (key === 'user') displayValue = activities[0]?.user?.fullname || value;
+        else displayValue = value;
+
+        displayKey = key === 'MainCriteria' ? 'المعيار الرئيسي' :
+                     key === 'SubCriteria' ? 'المعيار الفرعي' :
+                     key === 'user' ? 'المستخدم' : key;
+
+        filterDescription += ` | ${displayKey}: ${displayValue}`;
+      }
+    }
+
+    // إضافة وصف التاريخ لو موجود
+    if (startDate && endDate) filterDescription += ` | من: ${startDate} إلى: ${endDate}`;
+    else if (startDate) filterDescription += ` | بتاريخ: ${startDate}`;
+
+
+    // 5. تجميع حسب المستخدم
+    const groupedByUser = {};
+    for (const activity of activities) {
+      const userName = activity.user?.fullname || 'مستخدم غير معروف';
+      if (!groupedByUser[userName]) groupedByUser[userName] = [];
+      groupedByUser[userName].push(activity);
+    }
+
+    // 6. إعداد الموارد (الخط والشعار)
+    const fontPath = path.join(__dirname, '../fonts/Amiri-Regular.ttf');
+    const logoPath = path.join(__dirname, '../assets/logo.png');
+    if (!fs.existsSync(fontPath)) throw new Error('خط Amiri غير موجود!');
+    const logoBuffer = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
+
+    const outputDir = path.join(__dirname, '../generated-files');
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    const pdfPath = getUniqueFilePath(outputDir, 'تقرير_الأنشطة', '.pdf');
+
+    // 7. إنشاء PDF
+    const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 50, left: 70, right: 70 } });
+    doc.registerFont('Amiri', fontPath);
+    const pdfStream = fs.createWriteStream(pdfPath);
+    doc.pipe(pdfStream);
+
+    const pageW = doc.page.width;
+    const pageH = doc.page.height;
+
+    const drawBorder = () => doc.save().lineWidth(2).strokeColor('#444').rect(20, 20, pageW - 40, pageH - 40).stroke().restore();
+
+    // 8. صفحة الغلاف
+    drawBorder();
+    if (logoBuffer) {
+      const imgW = 120;
+      const startY = (pageH - imgW - 100) / 2;
+      doc.image(logoBuffer, (pageW - imgW) / 2, startY, { width: imgW });
+      doc.font('Amiri').fontSize(32).text('جامعة قنا', 0, startY + imgW + 70, { width: pageW, align: 'center', features: ['rtla'] });
+    } else {
+      doc.font('Amiri').fontSize(32).text('جامعة قنا', 0, pageH / 2 - 16, { width: pageW, align: 'center', features: ['rtla'] });
+    }
+
+    // 9. صفحة الفلترة
+    doc.addPage(); drawBorder();
+    doc.font('Amiri').fontSize(22).text(filterDescription, 0, pageH / 2 - 20, { width: pageW, align: 'center', features: ['rtla'] });
+
+    // 10. صفحات المستخدمين والأنشطة
+    for (const [userName, userActivities] of Object.entries(groupedByUser)) {
+      doc.addPage(); drawBorder();
+      doc.font('Amiri').fontSize(26).text(`أنشطة ${userName}`, 70, pageH / 2 - 30, { width: pageW - 140, align: 'center', features: ['rtla'] });
+
+      for (let i = 0; i < userActivities.length; i++) {
+        const activity = userActivities[i];
+        doc.addPage(); drawBorder();
+
+        const info = {
+          title: activity.activityTitle || activity.title || '-',
+          description: activity.activityDescription || activity.description || '-',
+          mainCriteria: activity.MainCriteria?.name || '-',
+          subCriteria: activity.SubCriteria?.name || '-',
+          performer: activity.name || '-',
+          date: formatDate(activity.date),
+        };
+
+        doc.font('Amiri').fontSize(18).text(`النشاط رقم ${i + 1}`, 0, 100, { width: pageW, align: 'center', features: ['rtla'] });
+        doc.moveDown(2);
+
+        writeField(doc, 'عنوان النشاط', info.title, pageW);
+        writeField(doc, 'الوصف', info.description, pageW);
+        writeField(doc, 'المعيار الرئيسي', info.mainCriteria, pageW);
+        writeField(doc, 'المعيار الفرعي', info.subCriteria, pageW);
+        writeField(doc, 'تاريخ النشاط', info.date, pageW);
+        if (info.performer !== '-') writeField(doc, 'القائم بالنشاط', info.performer, pageW);
+
+        // المرفقات
+        if (activity.Attachments?.length) {
+          doc.moveDown(1);
+          doc.fontSize(14).fillColor('#1a5fb4').text('المرفقات:', 70, doc.y, { align: 'right', features: ['rtla'] });
+          doc.moveDown(0.5);
+
+          for (const link of activity.Attachments) {
+            const fullUrl = link.startsWith('http') ? link : `${req.protocol}://${req.get('host')}${link}`;
+            const ext = path.extname(fullUrl).toLowerCase();
+            if (['.jpg','.jpeg','.png','.gif','.webp'].includes(ext)) {
+              const imgBuffer = await getImageBuffer(fullUrl);
+              if (imgBuffer) { try { doc.image(imgBuffer, { fit: [450, 300], align: 'center' }); doc.moveDown(0.6); continue; } catch {} }
+            }
+            doc.fillColor('#1a5fb4').fontSize(11).text(fullUrl, 70, doc.y, { width: pageW - 140, align: 'right', link: fullUrl, underline: true, features: ['rtla'] });
+            doc.moveDown(0.3);
+          }
+        }
+      }
+    }
+
+    // 11. إنهاء PDF
+    doc.end();
+    await new Promise((resolve, reject) => { pdfStream.on('finish', resolve); pdfStream.on('error', reject); });
+
+    const pdfUrl = `${req.protocol}://${req.get('host')}/generated-files/${path.basename(pdfPath)}`;
+    res.json({ success: true, message: 'تم إنشاء التقرير بنجاح', file: pdfUrl, count: activities.length });
+
+  } catch (error) {
+    console.error('خطأ في إنشاء التقرير:', error);
+    res.status(500).json({ success: false, message: 'حدث خطأ أثناء إنشاء التقرير', error: error.message });
+  }
+};
+
+
 const updateActivityStatus = async (req, res) => {
   // removed browser variable since puppeteer not used
   try {
@@ -294,7 +507,9 @@ const updateActivityStatus = async (req, res) => {
 
     const validStatuses = ["مرفوض", "قيد المراجعة", "معتمد"];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, message: "حالة غير صالحة" });
+      return res
+        .status(400)
+        .json({ success: false, message: "حالة غير صالحة" });
     }
 
     const activity = await activitymodel
@@ -304,7 +519,9 @@ const updateActivityStatus = async (req, res) => {
       .populate("SubCriteria", "name");
 
     if (!activity) {
-      return res.status(404).json({ success: false, message: "النشاط غير موجود" });
+      return res
+        .status(404)
+        .json({ success: false, message: "النشاط غير موجود" });
     }
 
     const io = getIo();
@@ -316,351 +533,21 @@ const updateActivityStatus = async (req, res) => {
     });
     await notification.save();
 
-    // ❌ لا تنشئ الملفات إلا إذا كانت الحالة "معتمد"
-    if (status !== "معتمد") {
-      return res.json({ success: true, activity });
-    }
-
-    // ------------------- إعداد البيانات -------------------
-    const info = {
-      title: activity.activityTitle,
-      description: activity.activityDescription,
-      mainCriteria: activity.MainCriteria?.name || "-",
-      subCriteria: activity.SubCriteria?.name || "-",
-      college: activity.user?.fullname || "-",
-      performer: activity.name || "", // ← لو فاضي مش يظهر
-      date: activity.date ? new Date(activity.date).toLocaleDateString("ar-EG") : "غير محدد",
-    };
-
-    // ------------------- تحميل الخط -------------------
-    const fontPath = path.join(__dirname, "../fonts/Amiri-Regular.ttf");
-    if (!fs.existsSync(fontPath)) {
-      throw new Error("خط Amiri غير موجود! تأكد من وضعه في مجلد /fonts/.");
-    }
-
-    // ------------------- تحميل شعار الجامعة -------------------
-    const logoPath = path.join(__dirname, "../assets/qena_university_logo.png");
-    let logoBuffer = null;
-    if (fs.existsSync(logoPath)) {
-      logoBuffer = fs.readFileSync(logoPath);
-    }
-
-    // ------------------- تحميل الصور (مرفقات) -------------------
-    const attachmentsHtmlBuffers = await Promise.all(
-      (activity.Attachments || []).map(async (link) => {
-        const fullUrl = link.startsWith("http")
-          ? link
-          : `${req.protocol}://${req.get("host")}${link}`;
-        const ext = path.extname(fullUrl).toLowerCase();
-
-        if ([".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) {
-          // حاول نجلب الصورة كـ buffer
-          const imgBuffer = await getImageBuffer(fullUrl);
-          if (imgBuffer) {
-            return { type: "image", buffer: imgBuffer, url: fullUrl };
-          }
-        }
-        return { type: "link", url: fullUrl };
-      })
-    );
-
-    // ------------------- إعداد مجلد الإخراج -------------------
-    const outputDir = path.join(__dirname, "../generated-files");
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-    const cleanName = (text) =>
-      text.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
-    const baseName = `تقرير_${cleanName(info.title)}_${cleanName(info.college)}`;
-
-    const pdfPath = getUniqueFilePath(outputDir, baseName, ".pdf");
-    const docxPath = getUniqueFilePath(outputDir, baseName, ".docx");
-
-    // ------------------- إنشاء PDF باستخدام PDFKit -------------------
-    // إعداد المستند
-    const doc = new PDFDocument({
-      size: "A4",
-      margins: { top: 50, bottom: 50, left: 70, right: 70 }
-    });
-
-    // سجل الخط
-    doc.registerFont("Amiri", fontPath);
-
-    // تيار الكتابة إلى ملف
-    const pdfStream = fs.createWriteStream(pdfPath);
-    doc.pipe(pdfStream);
-
-    // ترويسة (شعار + عنوان)
-    if (logoBuffer) {
-      // نحاول رسم الشعار في المنتصف
-      try {
-        // نرسم الصورة بعرض أقصى 100 مع الحفاظ على النسبة
-        doc.image(logoBuffer, (doc.page.width - 100) / 2, doc.y, { width: 100 });
-      } catch (e) {
-        console.warn("تعذر تضمين الشعار في الـ PDF:", e.message);
-      }
-      doc.moveDown(0.6);
-    }
-
-    // عناوين مركزية
-    doc
-      .font("Amiri")
-      .fontSize(20)
-      .fillColor("#222222")
-      .text(fixArabic("جامعة جنوب الوادي"), { align: "center" });
-
-    doc.moveDown(0.2);
-
-    doc
-      .font("Amiri")
-      .fontSize(16)
-      .fillColor("#222222")
-      .text(fixArabic("تقرير نشاط جامعي"), { align: "center" });
-
-    doc.moveDown(0.6);
-
-    // خط فاصل
-    const leftX = doc.page.margins.left;
-    const rightX = doc.page.width - doc.page.margins.right;
-    const yLine = doc.y;
-    doc.moveTo(leftX, yLine).lineTo(rightX, yLine).lineWidth(1.5).strokeColor("#222222").stroke();
-    doc.moveDown(1);
-
-    // معلومات (يمين - RTL)
-    const infoLines = [
-      `الكلية: ${info.college}`,
-      `عنوان النشاط: ${info.title}`,
-      `الوصف: ${info.description}`,
-      `المعيار الرئيسي: ${info.mainCriteria}`,
-      `المعيار الفرعي: ${info.subCriteria}`,
-      `تاريخ النشاط: ${info.date}`,
-    ];
-    if (info.performer) infoLines.push(`اسم القائم بالنشاط: ${info.performer}`);
-
-    // نطبع كل سطر محاذياً لليمين
-    doc.fontSize(12).fillColor("#222222");
-    for (const line of infoLines) {
-      doc.text(fixArabic(line), {
-        align: "right",
-        continued: false,
-        paragraphGap: 6,
-        indent: 0,
-      });
-      doc.moveDown(0.3);
-    }
-
-    // مساحة قبل المرفقات
-    if (attachmentsHtmlBuffers.length > 0) {
-      doc.moveDown(1);
-      doc.fontSize(14).fillColor("#1a5fb4").text(fixArabic("المرفقات:"), { align: "right" });
-      doc.moveDown(0.4);
-
-      for (const item of attachmentsHtmlBuffers) {
-        if (item.type === "image") {
-          try {
-            // ندرج الصورة بالحجم المناسب (fit)
-            doc.image(item.buffer, {
-              fit: [450, 300],
-              align: "center",
-              valign: "center"
-            });
-            doc.moveDown(0.6);
-          } catch (e) {
-            console.warn("تعذر تضمين صورة في الـ PDF:", e.message);
-            // لو فشل الإدراج كصورة نكتب الرابط بدلًا من ذلك
-            doc.fillColor("#1a5fb4").fontSize(11).text(fixArabic(item.url), { align: "right", link: item.url, underline: true });
-            doc.moveDown(0.4);
-          }
-        } else {
-          doc.fillColor("#1a5fb4").fontSize(11).text(fixArabic(item.url), {
-            align: "right",
-            link: item.url,
-            underline: true
-          });
-          doc.moveDown(0.4);
-        }
-      }
-    }
-    // أنهِ المستند وانتظر كتابة الملف
-    doc.end();
-    await new Promise((resolve, reject) => {
-      pdfStream.on("finish", resolve);
-      pdfStream.on("error", reject);
-    });
-
-    // ------------------- إنشاء DOCX (كما في الكود الأصلي) -------------------
-    const paragraphs = [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 600 },
-        children: [
-          new TextRun({
-            text: "جامعة جنوب الوادي",
-            bold: true,
-            size: 36,
-            color: "1a5fb4",
-          }),
-        ],
-      }),
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 600 },
-        children: [
-          new TextRun({
-            text: "تقرير نشاط جامعي",
-            bold: true,
-            size: 30,
-            color: "1a5fb4",
-          }),
-        ],
-      }),
-    ];
-
-    const lines = [
-      `الكلية: ${info.college}`,
-      `عنوان النشاط: ${info.title}`,
-      `الوصف: ${info.description}`,
-      `المعيار الرئيسي: ${info.mainCriteria}`,
-      `المعيار الفرعي: ${info.subCriteria}`,
-      `تاريخ النشاط: ${info.date}`,
-    ];
-
-    if (info.performer) lines.push(`اسم القائم بالنشاط: ${info.performer}`);
-
-    lines.forEach((line) => {
-      paragraphs.push(
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          spacing: { before: 200, after: 400, line: 300 },
-          children: [
-            new TextRun({
-              text: line,
-              size: 28,
-              color: "222222",
-            }),
-          ],
-        })
-      );
-    });
-
-    if (activity.Attachments?.length) {
-      paragraphs.push(
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          spacing: { before: 600, after: 400 },
-          children: [
-            new TextRun({
-              text: "المرفقات:",
-              bold: true,
-              size: 30,
-              color: "1a5fb4",
-            }),
-          ],
-        })
-      );
-
-      for (const [i, link] of activity.Attachments.entries()) {
-        const fullUrl = link.startsWith("http")
-          ? link
-          : `${req.protocol}://${req.get("host")}${link}`;
-        const ext = path.extname(fullUrl).toLowerCase();
-
-        if ([".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) {
-          const imgBuffer = await getImageBuffer(fullUrl);
-          if (imgBuffer) {
-            paragraphs.push(
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 600 },
-                children: [
-                  new ImageRun({
-                    data: imgBuffer,
-                    transformation: { width: 420, height: 260 }
-                  }),
-                ],
-              })
-            );
-            continue;
-          }
-        }
-
-        paragraphs.push(
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            spacing: { after: 300 },
-            children: [
-              new TextRun({
-                text: `${i + 1}- ${fullUrl}`,
-                color: "1a5fb4",
-                underline: { type: "single" },
-                size: 26,
-              }),
-            ],
-          })
-        );
-      }
-    }
-
-    const docxDoc = new Document({
-      sections: [
-        {
-          properties: { rtl: true },
-          children: paragraphs,
-        },
-      ],
-    });
-
-    const docxBuffer = await Packer.toBuffer(docxDoc);
-    fs.writeFileSync(docxPath, docxBuffer);
-
-
-    const pdfUrl = `${req.protocol}://${req.get("host")}/generated-files/${path.basename(pdfPath)}`;
-    const docxUrl = `${req.protocol}://${req.get("host")}/generated-files/${path.basename(docxPath)}`;
-
     return res.json({
       success: true,
-      message: " تم إنشاء ملفات التقرير الجامعي بنجاح",
+      message: " تم  تحديث حالة النشاط الجامعي بنجاح",
       activity,
-      files: { pdf: pdfUrl, docx: docxUrl },
     });
   } catch (error) {
-    console.error(" خطأ في إنشاء التقرير:", error.message);
+    console.error(" خطأ في إنشاء النشاط:", error.message);
     // لا يوجد متصفح لإغلاقه الآن
-    res.status(500).json({ success: false, message: "خطأ أثناء إنشاء التقرير", error: error.message });
-  }
-};
-
-const viewPDF = async (req, res) => {
-  try {
-    const { filename } = req.params;
-    const filePath = path.join(__dirname, "../generated-files/", filename);
-    res.setHeader("Content-Type", "application/pdf");
-    res.sendFile(filePath);
-  } catch (error) {
-    res.status(500).json({ success: false, message: "خطأ في عرض الملف" });
-  }
-};
-const viewDOCX = async (req, res) => {
-  try {
-    const { filename } = req.params;
-    const filePath = path.join(__dirname, "../generated-files/", filename);
-
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    );
-
-    // هنا بنخلي الملف يتحمل أو يفتح في Microsoft Word
- const safeFilename = encodeURIComponent(filename);
-
-res.setHeader(
-  "Content-Disposition",
-  `inline; filename="${safeFilename}"`
-);
-
-    res.sendFile(filePath);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "خطاء في عرض الملف" });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "خطأ أثناء إنشاء النشاط",
+        error: error.message,
+      });
   }
 };
 
@@ -728,7 +615,7 @@ const getdraftActivities = async (req, res) => {
         .status(404)
         .json({ success: false, message: "النشاط غير موجود" });
     }
-    if(draftActivities.length === 0){
+    if (draftActivities.length === 0) {
       return res
         .status(404)
         .json({ success: false, message: "لا يوجد نشاطات مسودة" });
@@ -800,8 +687,7 @@ const recentAchievements = async (req, res) => {
       let criteriaText = "";
       if (mainCriteria && subCriteria)
         criteriaText = `ضمن المعيار "${mainCriteria}" - "${subCriteria}"`;
-      else if (mainCriteria)
-        criteriaText = `ضمن المعيار "${mainCriteria}"`;
+      else if (mainCriteria) criteriaText = `ضمن المعيار "${mainCriteria}"`;
       else if (subCriteria)
         criteriaText = `ضمن المعيار الفرعي "${subCriteria}"`;
       else criteriaText = "ضمن معيار لم يتم تحديده بعد";
@@ -824,7 +710,6 @@ const recentAchievements = async (req, res) => {
   }
 };
 
-
 module.exports = {
   addactivity,
   getallactivities,
@@ -840,6 +725,5 @@ module.exports = {
   search,
   filterByStatus,
   recentAchievements,
-  viewPDF,
-  viewDOCX
+  generateAllActivitiesPDF,
 };

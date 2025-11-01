@@ -17,12 +17,11 @@ const {
   getdraftActivities,
   search,
   filterByStatus,
-  viewPDF,
   recentAchievements,
   updateDraftActivities,
   deleteDraftActivities,
   getdraftActivitiesById,
-  viewDOCX,
+  generateAllActivitiesPDF,
 } = require("../controller/activity");
 
 router.post(
@@ -38,7 +37,6 @@ router.get("/search", verifyTokenMiddleware, search);
 router.get("/filter", verifyTokenMiddleware, filterByStatus);
 router.get("/recent-achievements", verifyTokenMiddleware, recentAchievements);
 
-router.get("/:id", verifyTokenMiddleware, getActivityById);
 router.put("/update-status/:id", verifyTokenMiddleware, updateActivityStatus);
 router.put("/update/:id", verifyTokenMiddleware, updateActivity);
 router.delete("/delete/:id", verifyTokenMiddleware, deleteActivity);
@@ -54,6 +52,7 @@ router.delete(
   deleteDraftActivities
 );
 router.get("/draft/:id", verifyTokenMiddleware, getdraftActivitiesById);
-router.get("/pdf/:filename", verifyTokenMiddleware, viewPDF);
-router.get("/docx/:filename", verifyTokenMiddleware, viewDOCX);
+router.get("/generate-pdf", verifyTokenMiddleware, generateAllActivitiesPDF);
+router.get("/:id", verifyTokenMiddleware, getActivityById);
+
 module.exports = router;
