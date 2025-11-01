@@ -22,6 +22,7 @@ const {
   deleteDraftActivities,
   getdraftActivitiesById,
   generateAllActivitiesPDF,
+  viewPDF,
 } = require("../controller/activity");
 
 router.post(
@@ -53,6 +54,7 @@ router.delete(
 );
 router.get("/draft/:id", verifyTokenMiddleware, getdraftActivitiesById);
 router.get("/generate-pdf", verifyTokenMiddleware, generateAllActivitiesPDF);
+router.get("/view-pdf/:filename", verifyTokenMiddleware, viewPDF);
 router.get("/:id", verifyTokenMiddleware, getActivityById);
 
 module.exports = router;
