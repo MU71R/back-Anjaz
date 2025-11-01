@@ -304,6 +304,7 @@ async function getImageBuffer(url) {
   }
 }
 
+// اسم ملف فريد
 function getUniqueFilePath(dir, baseName, ext) {
   let counter = 1;
   let filePath = path.join(dir, `${baseName}${ext}`);
@@ -313,26 +314,77 @@ function getUniqueFilePath(dir, baseName, ext) {
   return filePath;
 }
 
-// تنسيق التاريخ بالعربية
+// تنسيق التاريخ زي القديم بالظبط
 const formatDate = (d) => {
   if (!d) return "غير محدد";
-  return dayjs(d).locale("ar").format("D MMMM YYYY");
+  const date = new Date(d);
+  const day = date.toLocaleString("ar-EG", { day: "numeric" });
+  const month = date.toLocaleString("ar-EG", { month: "long" });
+  const year = date.toLocaleString("ar-EG", { year: "numeric", numberingSystem: "arab" });
+  return `${day} ${month} ${year}`;
 };
 
-// دالة كتابة حقل مع wrap طبيعي
+// دالة كتابة حقل مع تقطيع ذكي
 const writeField = (doc, label, value, pageW) => {
+  const fullText = `${label}: ${value}`;
   const margin = 70;
   const maxWidth = pageW - margin * 2;
-  doc.text(`${label}: ${value}`, margin, doc.y, {
-    width: maxWidth,
-    align: 'right',
-    lineGap: 4,
-    features: ['rtla'], // دعم RTL
-  });
+
+  // قياس عرض النص
+  const textWidth = doc.widthOfString(fullText);
+  if (textWidth <= maxWidth) {
+    doc.text(fullText, margin, doc.y, {
+      width: maxWidth,
+      align: 'right',
+      features: ['rtla'],
+      lineGap: 4,
+    });
+    doc.moveDown(0.5);
+    return;
+  }
+
+  // تقسيم النص إلى كلمات
+  const words = fullText.split(' ');
+  let currentLine = '';
+  let lines = [];
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (doc.widthOfString(testLine) <= maxWidth) {
+      currentLine = testLine;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      // إذا الكلمة نفسها أطول من السطر → نقطّعها
+      if (doc.widthOfString(word) > maxWidth) {
+        let chunk = '';
+        for (const char of word) {
+          if (doc.widthOfString(chunk + char) > maxWidth) {
+            lines.push(chunk);
+            chunk = char;
+          } else {
+            chunk += char;
+          }
+        }
+        currentLine = chunk;
+      } else {
+        currentLine = word;
+      }
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+
+  // طباعة الأسطر
+  for (const line of lines) {
+    doc.text(line, margin, doc.y, {
+      width: maxWidth,
+      align: 'right',
+      features: ['rtla'],
+      lineGap: 4,
+    });
+  }
   doc.moveDown(0.5);
 };
 
-// ===== الكود الرئيسي =====
 const generateAllActivitiesPDF = async (req, res) => {
  try {
     // 1. استخراج الفلاتر + التواريخ
@@ -392,8 +444,7 @@ const generateAllActivitiesPDF = async (req, res) => {
     if (startDate && endDate) filterDescription += ` | من: ${startDate} إلى: ${endDate}`;
     else if (startDate) filterDescription += ` | بتاريخ: ${startDate}`;
 
-
-    // 5. تجميع حسب المستخدم
+    // 4. تجميع حسب المستخدم
     const groupedByUser = {};
     for (const activity of activities) {
       const userName = activity.user?.fullname || 'مستخدم غير معروف';
@@ -401,7 +452,7 @@ const generateAllActivitiesPDF = async (req, res) => {
       groupedByUser[userName].push(activity);
     }
 
-    // 6. إعداد الموارد (الخط والشعار)
+    // 5. تحميل الموارد
     const fontPath = path.join(__dirname, '../fonts/Amiri-Regular.ttf');
     const logoPath = path.join(__dirname, '../assets/logo.png');
     if (!fs.existsSync(fontPath)) throw new Error('خط Amiri غير موجود!');
@@ -411,8 +462,11 @@ const generateAllActivitiesPDF = async (req, res) => {
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
     const pdfPath = getUniqueFilePath(outputDir, 'تقرير_الأنشطة', '.pdf');
 
-    // 7. إنشاء PDF
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 50, left: 70, right: 70 } });
+    // 6. إعداد PDF
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 50, bottom: 50, left: 70, right: 70 },
+    });
     doc.registerFont('Amiri', fontPath);
     const pdfStream = fs.createWriteStream(pdfPath);
     doc.pipe(pdfStream);
@@ -420,31 +474,59 @@ const generateAllActivitiesPDF = async (req, res) => {
     const pageW = doc.page.width;
     const pageH = doc.page.height;
 
-    const drawBorder = () => doc.save().lineWidth(2).strokeColor('#444').rect(20, 20, pageW - 40, pageH - 40).stroke().restore();
+    // دالة رسم الإطار
+    const drawBorder = () => {
+      doc.save()
+         .lineWidth(2)
+         .strokeColor('#444')
+         .rect(20, 20, pageW - 40, pageH - 40)
+         .stroke()
+         .restore();
+    };
 
-    // 8. صفحة الغلاف
+    // 7. صفحة الغلاف
     drawBorder();
     if (logoBuffer) {
       const imgW = 120;
       const startY = (pageH - imgW - 100) / 2;
       doc.image(logoBuffer, (pageW - imgW) / 2, startY, { width: imgW });
-      doc.font('Amiri').fontSize(32).text('جامعة قنا', 0, startY + imgW + 70, { width: pageW, align: 'center', features: ['rtla'] });
+      doc.font('Amiri').fontSize(32).text('جامعة قنا', 0, startY + imgW + 70, {
+        width: pageW,
+        align: 'center',
+        features: ['rtla'],
+      });
     } else {
-      doc.font('Amiri').fontSize(32).text('جامعة قنا', 0, pageH / 2 - 16, { width: pageW, align: 'center', features: ['rtla'] });
+      doc.font('Amiri').fontSize(32).text('جامعة قنا', 0, pageH / 2 - 16, {
+        width: pageW,
+        align: 'center',
+        features: ['rtla'],
+      });
     }
 
-    // 9. صفحة الفلترة
-    doc.addPage(); drawBorder();
-    doc.font('Amiri').fontSize(22).text(filterDescription, 0, pageH / 2 - 20, { width: pageW, align: 'center', features: ['rtla'] });
+    // 8. صفحة الفلترة
+doc.addPage();
+drawBorder();
+doc.font('Amiri').fontSize(22).text(filterDescription, 20, pageH / 2 - 20, {
+  width: pageW - 40,  // داخل الإطار (20 من كل جهة)
+  align: 'center',
+  features: ['rtla'],
+});
 
-    // 10. صفحات المستخدمين والأنشطة
+    // 9. صفحات المستخدمين
     for (const [userName, userActivities] of Object.entries(groupedByUser)) {
-      doc.addPage(); drawBorder();
-      doc.font('Amiri').fontSize(26).text(`أنشطة ${userName}`, 70, pageH / 2 - 30, { width: pageW - 140, align: 'center', features: ['rtla'] });
+      doc.addPage();
+      drawBorder();
+      doc.font('Amiri').fontSize(26).text(`أنشطة ${userName}`, 70, pageH / 2 - 30, {
+        width: pageW - 140,
+        align: 'center',
+        features: ['rtla'],
+      });
 
+      // صفحات الأنشطة
       for (let i = 0; i < userActivities.length; i++) {
         const activity = userActivities[i];
-        doc.addPage(); drawBorder();
+        doc.addPage();
+        drawBorder();
 
         const info = {
           title: activity.activityTitle || activity.title || '-',
@@ -455,9 +537,15 @@ const generateAllActivitiesPDF = async (req, res) => {
           date: formatDate(activity.date),
         };
 
-        doc.font('Amiri').fontSize(18).text(`النشاط رقم ${i + 1}`, 0, 100, { width: pageW, align: 'center', features: ['rtla'] });
+        // شيل الأقواس: "النشاط رقم 1" بدل "النشاط رقم (1)"
+        doc.font('Amiri').fontSize(18).text(`النشاط رقم ${i + 1}`, 0, 100, {
+          width: pageW,
+          align: 'center',
+          features: ['rtla'],
+        });
         doc.moveDown(2);
 
+        // استخدام الدالة الجديدة
         writeField(doc, 'عنوان النشاط', info.title, pageW);
         writeField(doc, 'الوصف', info.description, pageW);
         writeField(doc, 'المعيار الرئيسي', info.mainCriteria, pageW);
@@ -466,37 +554,67 @@ const generateAllActivitiesPDF = async (req, res) => {
         if (info.performer !== '-') writeField(doc, 'القائم بالنشاط', info.performer, pageW);
 
         // المرفقات
-        if (activity.Attachments?.length) {
+        if (activity.Attachments && activity.Attachments.length > 0) {
           doc.moveDown(1);
-          doc.fontSize(14).fillColor('#1a5fb4').text('المرفقات:', 70, doc.y, { align: 'right', features: ['rtla'] });
+          doc.fontSize(14).fillColor('#1a5fb4').text('المرفقات:', 70, doc.y, {
+            features: ['rtla'],
+            align: 'right',
+          });
           doc.moveDown(0.5);
 
           for (const link of activity.Attachments) {
             const fullUrl = link.startsWith('http') ? link : `${req.protocol}://${req.get('host')}${link}`;
             const ext = path.extname(fullUrl).toLowerCase();
-            if (['.jpg','.jpeg','.png','.gif','.webp'].includes(ext)) {
+
+            if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
               const imgBuffer = await getImageBuffer(fullUrl);
-              if (imgBuffer) { try { doc.image(imgBuffer, { fit: [450, 300], align: 'center' }); doc.moveDown(0.6); continue; } catch {} }
+              if (imgBuffer) {
+                try {
+                  doc.image(imgBuffer, { fit: [450, 300], align: 'center' });
+                  doc.moveDown(0.6);
+                  continue;
+                } catch {}
+              }
             }
-            doc.fillColor('#1a5fb4').fontSize(11).text(fullUrl, 70, doc.y, { width: pageW - 140, align: 'right', link: fullUrl, underline: true, features: ['rtla'] });
+
+            doc.fillColor('#1a5fb4').fontSize(11).text(fullUrl, 70, doc.y, {
+              width: pageW - 140,
+              align: 'right',
+              link: fullUrl,
+              underline: true,
+              features: ['rtla'],
+            });
             doc.moveDown(0.3);
           }
         }
       }
     }
 
-    // 11. إنهاء PDF
+    // 10. إنهاء
     doc.end();
-    await new Promise((resolve, reject) => { pdfStream.on('finish', resolve); pdfStream.on('error', reject); });
+    await new Promise((resolve, reject) => {
+      pdfStream.on('finish', resolve);
+      pdfStream.on('error', reject);
+    });
 
     const pdfUrl = `${req.protocol}://${req.get('host')}/generated-files/${path.basename(pdfPath)}`;
-    res.json({ success: true, message: 'تم إنشاء التقرير بنجاح', file: pdfUrl, count: activities.length });
+    res.json({
+      success: true,
+      message: '✅ تم إنشاء التقرير بنجاح بتنسيق احترافي ومضبوط',
+      file: pdfUrl,
+      count: activities.length,
+    });
 
   } catch (error) {
-    console.error('خطأ في إنشاء التقرير:', error);
-    res.status(500).json({ success: false, message: 'حدث خطأ أثناء إنشاء التقرير', error: error.message });
+    console.error('❌ خطأ أثناء إنشاء التقرير:', error);
+    res.status(500).json({
+      success: false,
+      message: 'حدث خطأ أثناء إنشاء التقرير',
+      error: error.message,
+    });
   }
 };
+
 
 
 const updateActivityStatus = async (req, res) => {
